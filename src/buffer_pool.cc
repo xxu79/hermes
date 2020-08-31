@@ -1391,70 +1391,61 @@ bool BuffersAreOnSameNode(BufferID b1, BufferID b2) {
   return result;
 }
 
-bool BuffersAreContiguous(BufferID b1, BufferID b2) {
-  bool result = true;
+bool BuffersAreContiguous(SharedMemoryContext *context, BufferID b1,
+                          BufferID b2, size_t prev_size) {
+  bool result = false;
 
-  if (IsNullBufferId(b1) || IsNullBufferId(b2)) {
-    result = false;
-  }
+  if (!IsNullBufferId(b1) && !IsNullBufferId(b2)) {
+    if (BuffersAreOnSameNode(b1, b2)) {
+      if (((i64)b2.bits.header_index - (i64)b1.bits.header_index) == 1) {
 
-  if (!BuffersAreOnSameNode(b1, b2)) {
-    // TODO(chogan): This is only valid for private resources like local ram and
-    // NVMe. Shared resources like burst buffers could be stored off of the node
-    // where the BufferID is stored, so two BufferIDs on different nodes could
-    // still represent a contiguous region in a burst buffer file.
-    result = false;
-  }
+        // TODO(chogan): It's possible that two buffers could have contiguous
+        // header_index values but the data could be split between two different
+        // files. Need to verify that they're part of the same file (for
+        // block-based Devices).
 
-  if (std::abs((i64)b1.bits.header_index - (i64)b2.bits.header_index) != 1) {
-    // TODO(chogan): It's possible that two buffers could have contiguous
-    // header_index values but the data could be split between two different
-    // files. Need to verify that they're part of the same file (for block-based
-    // Tiers).
-    result = false;
+        BufferHeader *header1 = GetHeaderByBufferId(context, b1);
+        // NOTE(chogan): First buffer must be full, otherwise there are gaps.
+        if (header1->used == header1->capacity) {
+          result = true;
+        }
+      }
+    }
   }
 
   return result;
 }
 
 struct IoOp {
-  BufferID starting_id;
-  size_t offset;
+  BufferID id;
   size_t size;
-  u32 node;
 };
 
 size_t ReadBlobFromBuffers(SharedMemoryContext *context, RpcContext *rpc,
                            Blob *blob, BufferIdArray *buffer_ids,
                            u32 *buffer_sizes) {
-#if 0
-  // TODO(chogan): Go through buffer_ids and come up with a plan to minimize
-  // rpcs and memcpys.
   std::vector<IoOp> ops;
   IoOp prev_op = {};
   BufferID prev_id = {};
   for (u32 i = 0; i < buffer_ids->length; ++i) {
-    bool push_this_op = true;
     IoOp op = {};
-    op.offset = prev_op.offset + prev_op.size;
+    op.size = buffer_sizes[i];
 
     BufferID id = buffer_ids->ids[i];
 
-    if (BuffersAreContiguous(prev_id, id)) {
-      push_this_op = false;
-    }
-
-    if (BufferIsRemote(rpc, id)) {
-    }
-
-    if (push_this_op) {
+    // TODO(chogan): If both are on the same remote node, BuffersAreContiguous
+    // needs to be an RPC
+    if (BuffersAreContiguous(context, prev_id, id, prev_op.size)) {
+      ops[ops.size() - 1].size += op.size;
+    } else {
       ops.push_back(op);
     }
+
+    // TODO(chogan): Combine all RPCs into one
 
     prev_op = op;
     prev_id = id;
   }
-#endif
 
   size_t total_bytes_read = 0;
   // TODO(chogan): @optimization Handle sequential buffers as one I/O operation
