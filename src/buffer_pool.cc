@@ -1345,10 +1345,13 @@ void WriteBlobToBuffers(SharedMemoryContext *context, RpcContext *rpc,
 }
 
 size_t LocalReadBufferById(SharedMemoryContext *context, BufferID id,
-                           Blob *blob, size_t read_offset) {
+                           Blob *blob, size_t read_offset, size_t read_size,
+                           int num_ids) {
   BufferHeader *header = GetHeaderByIndex(context, id.bits.header_index);
   Device *device = GetDeviceFromHeader(context, header);
-  size_t read_size = header->used;
+  if (read_size == 0) {
+    read_size = header->used;
+  }
 
   // TODO(chogan): Should this be a TicketMutex? It seems that at any
   // given time, only the DataOrganizer and an application core will
@@ -1356,6 +1359,9 @@ size_t LocalReadBufferById(SharedMemoryContext *context, BufferID id,
   // first come first serve. However, if it turns out that more
   // threads will be trying to lock the buffer, we may need to enforce
   // ordering.
+
+  // TODO(chogan): Need to lock all buffers that are a part of this read if
+  // we're batching multiple reads into one.
   LockBuffer(header);
 
   size_t result = 0;
@@ -1385,29 +1391,45 @@ size_t LocalReadBufferById(SharedMemoryContext *context, BufferID id,
   return result;
 }
 
-bool BuffersAreOnSameNode(BufferID b1, BufferID b2) {
+static bool BuffersAreOnSameNode(BufferID b1, BufferID b2) {
   bool result = b1.bits.node_id == b2.bits.node_id;
 
   return result;
 }
 
-bool BuffersAreContiguous(SharedMemoryContext *context, BufferID b1,
-                          BufferID b2, size_t prev_size) {
+static bool BuffersUseSameDevice(SharedMemoryContext *context, BufferID id1,
+                                 BufferID id2) {
+  BufferHeader *header1 = GetHeaderByBufferId(context, id1);
+  BufferHeader *header2 = GetHeaderByBufferId(context, id2);
+  bool result = header1->device_id == header2->device_id;
+
+  return result;
+}
+
+static bool BuffersAreContiguous(SharedMemoryContext *context, BufferID b1,
+                                 BufferID b2, size_t prev_size) {
   bool result = false;
 
   if (!IsNullBufferId(b1) && !IsNullBufferId(b2)) {
     if (BuffersAreOnSameNode(b1, b2)) {
       if (((i64)b2.bits.header_index - (i64)b1.bits.header_index) == 1) {
-
-        // TODO(chogan): It's possible that two buffers could have contiguous
-        // header_index values but the data could be split between two different
-        // files. Need to verify that they're part of the same file (for
-        // block-based Devices).
-
         BufferHeader *header1 = GetHeaderByBufferId(context, b1);
-        // NOTE(chogan): First buffer must be full, otherwise there are gaps.
+
         if (header1->used == header1->capacity) {
-          result = true;
+          // NOTE(chogan): First buffer must be full, otherwise there are gaps.
+
+          if (BuffersUseSameDevice(context, b1, b2)) {
+            BufferHeader *header2 = GetHeaderByBufferId(context, b2);
+            int slab1 = GetSlabIndexFromHeader(context, header1);
+            int slab2 = GetSlabIndexFromHeader(context, header2);
+
+            if (BufferIsByteAddressable(context, b1) || slab1 == slab2) {
+              // NOTE(chogan): This check is necessary for block devices because
+              // contiguous buffer headers could still store data in different
+              // files if they are right on the boundary between slabs.
+              result = true;
+            }
+          }
         }
       }
     }
@@ -1428,10 +1450,10 @@ size_t ReadBlobFromBuffers(SharedMemoryContext *context, RpcContext *rpc,
   IoOp prev_op = {};
   BufferID prev_id = {};
   for (u32 i = 0; i < buffer_ids->length; ++i) {
+    BufferID id = buffer_ids->ids[i];
     IoOp op = {};
     op.size = buffer_sizes[i];
-
-    BufferID id = buffer_ids->ids[i];
+    op.id = id;
 
     // TODO(chogan): If both are on the same remote node, BuffersAreContiguous
     // needs to be an RPC
@@ -1451,22 +1473,23 @@ size_t ReadBlobFromBuffers(SharedMemoryContext *context, RpcContext *rpc,
   // TODO(chogan): @optimization Handle sequential buffers as one I/O operation
   for (u32 i = 0; i < buffer_ids->length; ++i) {
     size_t bytes_read = 0;
+    size_t io_size = buffer_sizes[i];
     BufferID id = buffer_ids->ids[i];
     if (BufferIsRemote(rpc, id)) {
       // TODO(chogan): @optimization Aggregate multiple RPCs to same node into
       // one RPC.
-      if (buffer_sizes[i] > KILOBYTES(4)) {
+      if (io_size > KILOBYTES(4)) {
         size_t bytes_transferred = BulkRead(rpc, id.bits.node_id,
                                             "RemoteBulkReadBufferById",
                                             blob->data + total_bytes_read,
-                                            buffer_sizes[i], id);
+                                            io_size, id);
         // TODO(chogan): @errorhandling
-        assert(bytes_transferred == buffer_sizes[i]);
+        assert(bytes_transferred == io_size);
         bytes_read += bytes_transferred;
       } else {
         std::vector<u8> data = RpcCall<std::vector<u8>>(rpc, id.bits.node_id,
                                                         "RemoteReadBufferById",
-                                                        id, buffer_sizes[i]);
+                                                        id, io_size);
         bytes_read = data.size();
         // TODO(chogan): @optimization Avoid the copy
         memcpy(blob->data, data.data(), bytes_read);

@@ -407,7 +407,8 @@ size_t ReadBlobFromBuffers(SharedMemoryContext *context, RpcContext *rpc,
 size_t LocalWriteBufferById(SharedMemoryContext *context, BufferID id,
                             const Blob &blob, size_t offset);
 size_t LocalReadBufferById(SharedMemoryContext *context, BufferID id,
-                           Blob *blob, size_t offset);
+                           Blob *blob, size_t offset, size_t read_size = 0,
+                           int num_ids = 1);
 
 /**
  * Returns a vector of bandwidths in MiB per second.
