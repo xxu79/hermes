@@ -151,6 +151,7 @@ option(HERMES_MDM_STORAGE_STBDS
   "Use the STB library and shared memory to store metadata" ON)
 option(HERMES_DEBUG_HEAP "Store Heap debug information for visualization." OFF)
 option(HERMES_BUILD_BENCHMARKS "Build the Hermes benchmark suite." OFF)
+option(HERMES_BUILD_EXAMPLES "Build the Hermes example programs." ON)
 
 if(BUILD_SHARED_LIBS)
   set(HERMES_BUILD_SHARED_LIBS 1)
@@ -328,6 +329,13 @@ endif()
 #-----------------------------------------------------------------------------
 if(HERMES_BUILD_BENCHMARKS)
   add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/benchmarks)
+endif()
+
+#-----------------------------------------------------------------------------
+# Benchmarks
+#-----------------------------------------------------------------------------
+if(HERMES_BUILD_EXAMPLES)
+  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/examples)
 endif()
 
 #-----------------------------------------------------------------------------
