@@ -13,6 +13,24 @@
  * Utility classes and functions for Hermes.
  */
 
+// TODO(chogan): Disable timing in Release mode by default, but allow flag to
+// override default behaviour and keep it on.
+
+#define HERMES_BEGIN_TIMED_BLOCK(func_name)                 \
+  auto hermes_timed_block_start_ =                          \
+    std::chrono::high_resolution_clock::now();              \
+  const char *hermes_timed_block_func_name_ = (func_name);
+
+#define HERMES_END_TIMED_BLOCK()                                        \
+  auto hermes_timed_block_end_ =                                        \
+    std::chrono::high_resolution_clock::now();                          \
+  auto hermes_timed_block_elapsed_ =                                    \
+    hermes_timed_block_end_ - hermes_timed_block_start_;                \
+  double hermes_timed_block_seconds_ =                                  \
+    std::chrono::duration<double>(hermes_timed_block_elapsed_).count(); \
+  VLOG(1) << hermes_timed_block_func_name_ << " took "                  \
+          << hermes_timed_block_seconds_ << " seconds\n";
+
 namespace hermes {
 
 /**

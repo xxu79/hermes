@@ -43,9 +43,14 @@ int main(int argc, char **argv) {
     hapi::Bucket bucket(bucket_name, hermes, ctx);
 
     hapi::PlacementPolicy strategies[] = {
-      hapi::PlacementPolicy::kRandom,
+      // hapi::PlacementPolicy::kRandom,
       hapi::PlacementPolicy::kRoundRobin,
       hapi::PlacementPolicy::kMinimizeIoTime,
+    };
+
+    const char *strategy_names[] = {
+      "RoundRobin",
+      "MinimizeIoTime",
     };
 
 #if 0
@@ -61,18 +66,26 @@ int main(int argc, char **argv) {
     }
 #endif
 
-    for (auto policy : strategies) {
+    for (size_t i = 0;
+         i < sizeof(strategies) / sizeof(hapi::PlacementPolicy);
+         ++i) {
       // Create an API context for this Put, and set the policy
       hapi::Context put_ctx;
-      put_ctx.policy = policy;
+      put_ctx.policy = strategies[i];
 
       // Create a name and the data for this blob
-      std::string blob_name = "";
+      std::string blob_name = ("blob_" + std::string(strategy_names[i]) +
+                               std::to_string(app_rank));
       std::vector<int> blob(MEGABYTES(4) / sizeof(int), app_rank);
 
       // Buffer the blob in the hierarchy according to the desired policy
       hapi::Status result = bucket.Put(blob_name, blob, put_ctx);
-      assert(result == 0);
+
+      if (result != 0) {
+        // TODO(chogan): @errorhandling
+        HERMES_NOT_IMPLEMENTED_YET;
+      }
+
       //  Print summary + visual of buffer allocation (pick a core or two)
       //    Timings (min/max rank) "DPE solution," allocation, transfer
       //    Compare the estimated placement time/throughput w/ actual

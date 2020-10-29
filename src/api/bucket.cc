@@ -5,6 +5,7 @@
 
 #include "buffer_pool.h"
 #include "metadata_management.h"
+#include "utils.h"
 
 namespace hermes {
 
@@ -30,15 +31,20 @@ Status Bucket::Put(const std::string &name, const u8 *data, size_t size,
   if (IsValid()) {
     std::vector<size_t> sizes(1, size);
     std::vector<PlacementSchema> schemas;
+
+    HERMES_BEGIN_TIMED_BLOCK("CalculatePlacement");
     ret = CalculatePlacement(&hermes_->context_, &hermes_->rpc_, sizes, schemas,
                              ctx);
+    HERMES_END_TIMED_BLOCK();
 
     if (ret == 0) {
       std::vector<std::string> names(1, name);
       std::vector<std::vector<u8>> blobs(1);
       blobs[0].resize(size);
       // TODO(chogan): Create a PreallocatedMemory allocator for std::vector so
-      // that a single-blob-Put doesn't perform a copy
+      // that a single-blob-Put doesn't perform a copy. Then we can also reuse
+      // Put(vector<string>&, vector<vector<T>>&, Context&) instead of
+      // duplicating code here.
       for (size_t i = 0; i < size; ++i) {
         blobs[0][i] = data[i];
       }
