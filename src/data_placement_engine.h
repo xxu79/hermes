@@ -43,7 +43,7 @@ PlacementSchema AggregateBlobSchema(size_t num_target, PlacementSchema &schema);
 // internal
 std::vector<int> GetValidSplitChoices(size_t blob_size);
 Status AddRandomSchema(std::multimap<u64, size_t> &ordered_cap,
-                       size_t blob_size, std::vector<PlacementSchema> &output,
+                       size_t blob_size, PlacementSchema &output,
                        std::vector<u64> &node_state);
 
 }  // namespace hermes

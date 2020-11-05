@@ -43,12 +43,13 @@ int main(int argc, char **argv) {
     hapi::Bucket bucket(bucket_name, hermes, ctx);
 
     hapi::PlacementPolicy strategies[] = {
-      // hapi::PlacementPolicy::kRandom,
+      hapi::PlacementPolicy::kRandom,
       hapi::PlacementPolicy::kRoundRobin,
       hapi::PlacementPolicy::kMinimizeIoTime,
     };
 
     const char *strategy_names[] = {
+      "Random",
       "RoundRobin",
       "MinimizeIoTime",
     };
@@ -79,9 +80,13 @@ int main(int argc, char **argv) {
       std::vector<int> blob(MEGABYTES(4) / sizeof(int), app_rank);
 
       // Buffer the blob in the hierarchy according to the desired policy
-      hapi::Status result = bucket.Put(blob_name, blob, put_ctx);
+      if (bucket.Put(blob_name, blob, put_ctx) != 0) {
+        // TODO(chogan): @errorhandling
+        HERMES_NOT_IMPLEMENTED_YET;
+      }
 
-      if (result != 0) {
+      // Delete the blob
+      if (bucket.DeleteBlob(blob_name, put_ctx) != 0) {
         // TODO(chogan): @errorhandling
         HERMES_NOT_IMPLEMENTED_YET;
       }
