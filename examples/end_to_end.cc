@@ -78,7 +78,7 @@ int main(int argc, char **argv) {
       }
 
       // Buffer the blob in the hierarchy according to the desired policy
-      Status status = bucket.Put(blob_names, blob_batch, put_ctx);
+      hapi::Status status = bucket.Put(blob_names, blob_batch, put_ctx);
 
       //  Print summary + visual of buffer allocation (pick a core or two)
       //    Timings (min/max rank) "DPE solution," allocation, transfer
