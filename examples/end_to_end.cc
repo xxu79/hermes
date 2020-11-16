@@ -78,10 +78,7 @@ int main(int argc, char **argv) {
       }
 
       // Buffer the blob in the hierarchy according to the desired policy
-      if (bucket.Put(blob_names, blob_batch, put_ctx) != 0) {
-        // TODO(chogan): @errorhandling
-        HERMES_NOT_IMPLEMENTED_YET;
-      }
+      Status status = bucket.Put(blob_names, blob_batch, put_ctx);
 
       //  Print summary + visual of buffer allocation (pick a core or two)
       //    Timings (min/max rank) "DPE solution," allocation, transfer
