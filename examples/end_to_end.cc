@@ -54,39 +54,31 @@ int main(int argc, char **argv) {
       "MinimizeIoTime",
     };
 
-#if 0
-    switch (app_rank % 2) {
-      case 0: {
-        break;
-      }
-      case 1: {
-        break;
-      }
-      default:
-        break;
-    }
-#endif
+    // fixed sized
+    // random size
 
-    for (size_t i = 0;
-         i < sizeof(strategies) / sizeof(hapi::PlacementPolicy);
-         ++i) {
+    for (size_t strat_index = 0;
+         strat_index < sizeof(strategies) / sizeof(hapi::PlacementPolicy);
+         ++strat_index) {
       // Create an API context for this Put, and set the policy
       hapi::Context put_ctx;
-      put_ctx.policy = strategies[i];
+      put_ctx.policy = strategies[strat_index];
 
-      // Create a name and the data for this blob
-      std::string blob_name = ("blob_" + std::string(strategy_names[i]) +
-                               std::to_string(app_rank));
-      std::vector<int> blob(MEGABYTES(4) / sizeof(int), app_rank);
-
-      // Buffer the blob in the hierarchy according to the desired policy
-      if (bucket.Put(blob_name, blob, put_ctx) != 0) {
-        // TODO(chogan): @errorhandling
-        HERMES_NOT_IMPLEMENTED_YET;
+      size_t num_blobs = (app_rank + 1) * 5;
+      std::vector<std::vector<int>> blob_batch(num_blobs);
+      std::vector<std::string> blob_names(num_blobs);
+      for (size_t i = 0; i < num_blobs; ++i) {
+        // Create a name and the data for this blob
+        blob_names[i] = ("blob_" + std::string(strategy_names[strat_index]) +
+                         std::to_string(app_rank) + "_" + std::to_string(i));
+        blob_batch[i].resize(MEGABYTES(4) / sizeof(int));
+        for (size_t j = 0; j < blob_batch[i].size(); ++j) {
+          blob_batch[i][j] = app_rank;
+        }
       }
 
-      // Delete the blob
-      if (bucket.DeleteBlob(blob_name, put_ctx) != 0) {
+      // Buffer the blob in the hierarchy according to the desired policy
+      if (bucket.Put(blob_names, blob_batch, put_ctx) != 0) {
         // TODO(chogan): @errorhandling
         HERMES_NOT_IMPLEMENTED_YET;
       }
