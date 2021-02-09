@@ -24,6 +24,9 @@ set(STDIO_INTERNAL_ADAPTER_SRC ${CMAKE_CURRENT_SOURCE_DIR}/metadata_manager.cc
 add_library(hermes_stdio SHARED ${STDIO_ADAPTER_PRIVATE_HEADER} ${STDIO_ADAPTER_PUBLIC_HEADER} ${STDIO_ADAPTER_SRC})
 add_dependencies(hermes_stdio hermes)
 target_link_libraries(hermes_stdio hermes MPI::MPI_CXX)
+if(HERMES_ENABLE_COVERAGE)
+  set_coverage_flags(hermes_stdio)
+endif()
 
 add_library(hermes_stdio_internal SHARED ${STDIO_ADAPTER_PRIVATE_HEADER} ${STDIO_ADAPTER_PUBLIC_HEADER} ${STDIO_INTERNAL_ADAPTER_SRC})
 add_dependencies(hermes_stdio_internal hermes)
