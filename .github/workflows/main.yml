@@ -61,7 +61,7 @@ jobs:
           ci/install_hermes.sh
           mkdir -p "${GITHUB_WORKSPACE}/coverage"
           pushd build/
-          lcov -c -d . -o "${GITHUB_WORKSPACE}/coverage/lcov.info"
+          lcov -c -d . --no-external -o "${GITHUB_WORKSPACE}/coverage/lcov.info"
       - name: Coveralls
         uses: coverallsapp/github-action@master
         with:
